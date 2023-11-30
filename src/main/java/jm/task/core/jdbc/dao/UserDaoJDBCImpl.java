@@ -8,100 +8,172 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UserDaoJDBCImpl implements UserDao {
+    private static final String DROP_TABLE_QUERY = "DROP TABLE IF EXISTS %s";
+    private static final String INSERT_QUERY = "INSERT INTO user(name, lastname, age) VALUES (?, ?, ?)";
+    private static final String DELETE_QUERY = "DELETE FROM user WHERE id = ?";
+    private static final String SELECT_QUERY = "SELECT * FROM user";
+    private static final String TRUNCATE_QUERY = "TRUNCATE TABLE user";
 
-    private static final Connection connection = Util.getConnection();//todo: ..на проекте подобное именование 'con' будет вызывать удивление у коллег. Привыкаем к нормальной работе сейчас
+    private final Connection connection;
 
-    private final String createUsersQuery = "CREATE TABLE IF NOT EXISTS user" +
+    private final String createUsersQuery =
+            "CREATE TABLE IF NOT EXISTS user" +
             "(id BIGINT not NULL AUTO_INCREMENT, " +
             " name VARCHAR(255), " +
             " lastname VARCHAR(255), " +
             " age TINYINT, " +
-            " PRIMARY KEY ( id ))";//todo: выносим переменные из методов, именуем их по codeStyle (по смыслу)
+            " PRIMARY KEY ( id ))";
 
-    public UserDaoJDBCImpl() {//todo: заносим переменную через конструктор
-
+    public UserDaoJDBCImpl(Util util) {
+        this.connection = util.getConnection();
     }
-
-    //todo: потеряли транзакции.. однотипрая - над классом, с параметром (readOnly) - над нужными методами
 
     @Override
     public void createUsersTable() {
-        try (PreparedStatement ps = connection.prepareStatement(createUsersQuery)) {
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            throw new RuntimeException("Error with createUsersTable: " + ex.getMessage());//todo: примерно так..
+        try {
+            connection.setAutoCommit(false);
+            try (PreparedStatement ps = connection.prepareStatement(createUsersQuery)) {
+                ps.executeUpdate();
+                connection.commit();
+            } catch (SQLException sqlEx) {
+                connection.rollback();
+                throw new RuntimeException("Error with createUsersTable: " + sqlEx.getMessage());
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException connEx) {
+            throw new RuntimeException("Error with createUsersTable: " + connEx.getMessage());
         }
-
     }
 
     @Override
     public void dropUsersTable() {
-        try (PreparedStatement dropTable = connection.prepareStatement(
-                String.format("DROP TABLE IF EXISTS %s", "user"))) {//todo: здесь и далее - по примеру выше
-            dropTable.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        try {
+            connection.setAutoCommit(false);
+
+            try (PreparedStatement dropTable = connection.prepareStatement(
+                    String.format(DROP_TABLE_QUERY, "user"))) {
+                dropTable.executeUpdate();
+            } catch (SQLException ex) {
+                connection.rollback();
+                throw new RuntimeException("Error dropping users table:  " + ex.getMessage());
+            }
+
+            connection.commit();
+        } catch (SQLException ex) {
+            throw new RuntimeException("Error dropping users table: " + ex.getMessage());
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException ex) {
+                throw new RuntimeException("Error dropping users table: " + ex.getMessage());
+            }
         }
-
-
     }
 
     @Override
     public void saveUser(String name, String lastName, byte age) {
-        String query = "INSERT INTO user(name, lastname, age) VALUES (?, ?, ?)";
+        try {
+            connection.setAutoCommit(false);
 
-        try (PreparedStatement ps = connection.prepareStatement(query)) {// (query,Statement.RETURN_GENERATED_KEYS) ?)
-            ps.setString(1, name);
-            ps.setString(2, lastName);
-            ps.setInt(3, age);
-            ps.executeUpdate();
-            System.out.printf("User с именем %s добавлен в таблицу\n", name);
+            try (PreparedStatement ps = connection.prepareStatement(INSERT_QUERY)) {
+                ps.setString(1, name);
+                ps.setString(2, lastName);
+                ps.setInt(3, age);
+                ps.executeUpdate();
+                System.out.printf("User с именем %s добавлен в таблицу\n", name);
+            } catch (SQLException e) {
+                connection.rollback();
+                throw new RuntimeException("Error with saveUser: " + e.getMessage());
+            }
+
+            connection.commit();
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error with saveUser: " + e.getMessage());
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Error with saveUser: " + e.getMessage());
+            }
         }
-
     }
 
     @Override
     public void removeUserById(long id) {
-        String query = "DELETE FROM user WHERE id =?";
-        try (PreparedStatement ps = connection.prepareStatement(query)) {
-            ps.setLong(1, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        try {
+            connection.setAutoCommit(false);
 
+            try (PreparedStatement ps = connection.prepareStatement(DELETE_QUERY)) {
+                ps.setLong(1, id);
+                ps.executeUpdate();
+                connection.commit();
+            } catch (SQLException sqlEx) {
+                connection.rollback();
+                throw new RuntimeException("Error removing user with ID: " + id, sqlEx);
+            }
+        } catch (SQLException connEx) {
+            throw new RuntimeException("Error managing transaction: " + connEx.getMessage(), connEx);
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException autoCommitEx) {
+                throw new RuntimeException("Error resetting auto-commit: " + autoCommitEx.getMessage(), autoCommitEx);
+            }
+        }
     }
 
     @Override
     public List<User> getAllUsers() {
-        String query = "SELECT * FROM user";
         List<User> ls = new ArrayList<>();
-        try (PreparedStatement ps = connection.prepareStatement(query);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                User user = new User();
-                user.setId(rs.getLong("id"));
-                user.setName(rs.getString("name"));
-                user.setLastName(rs.getString("lastname"));
-                user.setAge(rs.getByte("age"));
-                ls.add(user);
+        try {
+            connection.setAutoCommit(false);
+            try (PreparedStatement ps = connection.prepareStatement(SELECT_QUERY);
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    User user = new User();
+                    user.setId(rs.getLong("id"));
+                    user.setName(rs.getString("name"));
+                    user.setLastName(rs.getString("lastname"));
+                    user.setAge(rs.getByte("age"));
+                    ls.add(user);
+                }
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw new RuntimeException("Error retrieving all users: " + e.getMessage(), e);
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error managing transaction: " + e.getMessage(), e);
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException ex) {
+                throw new RuntimeException("Error resetting auto-commit: " + ex.getMessage(), ex);
+            }
         }
         return ls;
     }
 
     @Override
     public void cleanUsersTable() {
-        String query = "TRUNCATE TABLE user";
-        try (PreparedStatement ps = connection.prepareStatement(query)) {
-            ps.executeUpdate();
+        try {
+            connection.setAutoCommit(false);
+            try (PreparedStatement ps = connection.prepareStatement(TRUNCATE_QUERY)) {
+                ps.executeUpdate();
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw new RuntimeException("Error cleaning users table: " + e.getMessage(), e);
+            }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error managing transaction: " + e.getMessage(), e);
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException ex) {
+                throw new RuntimeException("Error resetting auto-commit: " + ex.getMessage(), ex);
+            }
         }
-
     }
 }
