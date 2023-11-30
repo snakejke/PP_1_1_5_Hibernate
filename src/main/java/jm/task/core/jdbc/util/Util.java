@@ -13,7 +13,7 @@ public class Util {
     private static Connection connection;
 
 
-    static {
+    public void connect(){
         try {
             Class.forName("com.mysql.cj.jdbc.Driver").getDeclaredConstructor().newInstance();
             connection = DriverManager.getConnection(URL,USER,PASSWORD);
@@ -23,7 +23,10 @@ public class Util {
         }
     }
 
-    public static Connection getConnection(){//todo: переделываем нормальную реализацию в методе getConnection(). Избавляемся от static (..сломали парадигму ООП)
+    public Connection getConnection(){
+        if(connection == null){
+            connect();
+        }
         return connection;
     }
 }
