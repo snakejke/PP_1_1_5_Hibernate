@@ -5,6 +5,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Util {
+
     private static final Logger logger = Logger.getLogger(Util.class.getName());
     private static final String URL = "jdbc:mysql://localhost:3306/katadb";
     private static final String USER = "root";
@@ -22,7 +23,7 @@ public class Util {
         }
     }
 
-    public static Connection getConnection(){
+    public static Connection getConnection(){//todo: переделываем нормальную реализацию в методе getConnection(). Избавляемся от static (..сломали парадигму ООП)
         return connection;
     }
 }
