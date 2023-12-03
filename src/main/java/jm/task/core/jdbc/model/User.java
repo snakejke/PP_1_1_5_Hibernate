@@ -6,6 +6,7 @@ import javax.persistence.Table;
 
 @Table
 public class User {
+
     @Id
     private Long id;
 
