@@ -9,15 +9,15 @@ import java.util.List;
 
 public class UserDaoJDBCImpl implements UserDao {
     private static final String DROP_TABLE_QUERY = "DROP TABLE IF EXISTS %s";
-    private static final String INSERT_QUERY = "INSERT INTO user(name, lastname, age) VALUES (?, ?, ?)";
-    private static final String DELETE_QUERY = "DELETE FROM user WHERE id = ?";
-    private static final String SELECT_QUERY = "SELECT * FROM user";
-    private static final String TRUNCATE_QUERY = "TRUNCATE TABLE user";
+    private static final String INSERT_QUERY = "INSERT INTO USERTABLE(name, lastname, age) VALUES (?, ?, ?)";
+    private static final String DELETE_QUERY = "DELETE FROM USERTABLE WHERE id = ?";
+    private static final String SELECT_QUERY = "SELECT * FROM USERTABLE";
+    private static final String TRUNCATE_QUERY = "TRUNCATE TABLE USERTABLE";
 
     private final Connection connection;
 
     private final String createUsersQuery =
-            "CREATE TABLE IF NOT EXISTS user" +
+            "CREATE TABLE IF NOT EXISTS USERTABLE" +
             "(id BIGINT not NULL AUTO_INCREMENT, " +
             " name VARCHAR(255), " +
             " lastname VARCHAR(255), " +
@@ -52,7 +52,7 @@ public class UserDaoJDBCImpl implements UserDao {
             connection.setAutoCommit(false);
 
             try (PreparedStatement dropTable = connection.prepareStatement(
-                    String.format(DROP_TABLE_QUERY, "user"))) {
+                    String.format(DROP_TABLE_QUERY, "USERTABLE"))) {
                 dropTable.executeUpdate();
             } catch (SQLException ex) {
                 connection.rollback();
